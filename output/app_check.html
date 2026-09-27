@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Campus Customs – App Check</title>
+    <style>
+      :root {
+        --blue: #00356b;
+        --blue-mid: #286dc0;
+        --blue-light: #e8f0fa;
+        --border: #d3deec;
+        --text: #0f1f33;
+        --muted: #5b6b80;
+        font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text);
+        background: #f5f8fc;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      header {
+        padding: 2.5rem 1.5rem 2rem;
+        background: var(--blue);
+        color: #fff;
+        text-align: center;
+      }
+
+      header h1 {
+        margin: 0 0 0.4rem;
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        letter-spacing: 0.02em;
+      }
+
+      header p {
+        margin: 0;
+        opacity: 0.85;
+      }
+
+      main {
+        max-width: 60rem;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 4rem;
+      }
+
+      .check {
+        margin: 0 0 2rem;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 8px 24px rgba(0, 53, 107, 0.08);
+      }
+
+      .check img {
+        display: block;
+        width: 100%;
+        border-bottom: 1px solid var(--border);
+        background: var(--blue-light);
+      }
+
+      .check figcaption {
+        padding: 1rem 1.25rem 1.2rem;
+        line-height: 1.55;
+      }
+
+      .check-number {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--blue-mid);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .empty {
+        padding: 3rem 1rem;
+        border: 2px dashed var(--border);
+        border-radius: 14px;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Campus Customs App Check</h1>
+      <p>Screenshots from testing the Campus Customs website, with notes on what each one shows.</p>
+    </header>
+
+    <main>
+      <!-- One <figure class="check"> per screenshot. Images live in app_check_images/ (relative paths). -->
+      <figure class="check">
+        <img
+          src="app_check_images/01-dynamic-search-inventory.webp"
+          alt="Products page with &quot;hoo&quot; in the search bar showing 27 matching products; each card shows its price and total stock, and one card's add-to-cart bar shows how many are left in each size"
+        />
+        <figcaption>
+          <span class="check-number">Check 1</span>
+          Dynamic search and Inventory level
+        </figcaption>
+      </figure>
+
+      <figure class="check">
+        <img
+          src="app_check_images/02-sort-filter.webp"
+          alt="Products page searching &quot;hoo&quot; with the Sort by menu set to Name: A to Z; hoodies are listed alphabetically"
+        />
+        <figcaption>
+          <span class="check-number">Check 2</span>
+          Filter from Problem 9
+        </figcaption>
+      </figure>
+    </main>
+  </body>
+</html>

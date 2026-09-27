@@ -1,0 +1,1 @@
+I make the website prettier with better font and a more store-like layout. I leaned into the Yale athletics connection, and users can look at cool pictures of Bulldogs winning, and even track Yale's performance

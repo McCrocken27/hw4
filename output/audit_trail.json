@@ -1,0 +1,20 @@
+[
+  {
+    "time": "2026-09-27T23:42:51+00:00",
+    "name": "Style Advisor",
+    "result": "For a Harvard football game, choose warm Yale layers that are easy to add or remove, such as a long-sleeve shirt under a hoodie or jacket. Yale navy with white or gray accents works well, and a bold logo or classic script gives it a spirited game-day look. Suggested filters: weather cold, type hood…",
+    "stop_reason": "final answer returned (finish_reason=stop)"
+  },
+  {
+    "time": "2026-09-27T23:42:58+00:00",
+    "name": "Shopping Assistant",
+    "result": "Boola Boola! For the Harvard game, I’d layer a **navy Yale hoodie** over a tee, with the **Champion Reverse Weave Hoodie ($68)** in M currently in stock (20 available). For a lighter option, the **Vintage Standing Bulldog Crewneck ($58)** is also in stock in M (8 available)—great Yale spirit withou…",
+    "stop_reason": "final answer returned (finish_reason=stop)"
+  },
+  {
+    "time": "2026-09-27T23:43:06+00:00",
+    "name": "Shopping Assistant",
+    "result": "We have **20 in stock in M**, but the cart limit is **10 of the same product and size**. You can add up to 10 Champion Reverse Weave Hoodies in M from the product card; I can’t add them for you.",
+    "stop_reason": "final answer returned (finish_reason=stop)"
+  }
+]

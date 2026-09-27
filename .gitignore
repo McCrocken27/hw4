@@ -1,0 +1,34 @@
+# Secrets: the real API key stays on your computer
+.env
+.env.*
+!.env.example
+
+# Local-only data pack: the database and product images are not in git
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Node / Vite
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Audit trail backups and temporary files (audit_trail.json itself is committed)
+output/audit_trail.unreadable-*.json
+*.tmp
+
+# Editors and OS files
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini
