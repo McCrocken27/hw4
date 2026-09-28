@@ -34,7 +34,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import tools
-from agent import run_chat
+from agent import build_page_context, run_chat, shopper_context_from_user
 from models import (
     MAX_LOOP_ITERATIONS,
     MAX_QTY_PER_ITEM,
@@ -45,20 +45,17 @@ from models import (
     CartLine,
     ChatReply,
     ChatRequest,
-    CurrentProduct,
     GameResult,
     HistoryMessage,
     LoginRequest,
     LoopLimitReached,
     OrderLine,
     OrderReceipt,
-    PageContext,
     ProductCard,
     ProductPage,
     PublicUser,
     Scoreboard,
     SetQuantityRequest,
-    ShopperContext,
     SignupRequest,
     StockProblem,
     UpcomingGame,
@@ -1055,16 +1052,6 @@ def product(product_id: str):
 # ---------- chat ----------
 
 
-def _page_context(body: ChatRequest) -> PageContext:
-    """Where the shopper is. The product is looked up in the database; unknown IDs are dropped."""
-    product = None
-    if body.current_product_id:
-        found = tools.get_product(body.current_product_id)
-        if found:
-            product = CurrentProduct(**{k: found[k] for k in CurrentProduct.model_fields})
-    return PageContext(page=body.current_page, product=product)
-
-
 @app.post("/api/chat", response_model=ChatReply)
 async def chat(body: ChatRequest, request: Request, cc_session: str | None = Cookie(default=None)):
     """Send the conversation to the shopping agent and return its reply plus product cards.
@@ -1077,19 +1064,12 @@ async def chat(body: ChatRequest, request: Request, cc_session: str | None = Coo
             status_code=429, detail="You're sending messages quickly. Please wait a minute."
         )
     # Identity comes from the login cookie, never from the message body, so nobody can
-    # claim to be someone else.
+    # claim to be someone else. The user dict has id, first_name, last_name and email.
     user = user_for_session(cc_session)
-    shopper = (
-        ShopperContext(
-            logged_in=True,
-            first_name=user["first_name"],
-            last_name=user["last_name"],
-            email=user["email"],
-        )
-        if user
-        else ShopperContext()
-    )
-    result = await run_chat(body.messages, shopper, _page_context(body))
+    shopper_context = shopper_context_from_user(user)  # name + email for the agent
+    # The page the chat was used from, and the currently viewed product on a product page.
+    page_context = build_page_context(body.current_page, body.current_product_id)
+    result = await run_chat(body.messages, shopper_context, page_context)
 
     message_id = None
     if user and result.outcome == "answered":

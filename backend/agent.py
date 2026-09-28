@@ -49,6 +49,7 @@ from models import (
     ChatDeps,
     ChatReply,
     ChatTurn,
+    CurrentProduct,
     PageContext,
     ProductCard,
     ShopperContext,
@@ -160,32 +161,40 @@ def build_agent() -> Agent[ChatDeps, AgentOutput]:
     )
 
     @agent.instructions
-    def shopper_identity(ctx: RunContext[ChatDeps]) -> str:
-        """Who the shopper is, from their login (added to the instructions each reply)."""
-        s = ctx.deps.shopper
-        if not s.logged_in:
+    def shopper_instructions(ctx: RunContext[ChatDeps]) -> str:
+        """The logged-in shopper's name and email, added to the instructions each reply."""
+        shopper_context = ctx.deps.shopper_context
+        if not shopper_context.logged_in:
             return "## Shopper\nThe shopper is not logged in, so you don't know their name or email."
-        name = " ".join(part for part in (s.first_name, s.last_name) if part)
+        full_name = " ".join(part for part in (shopper_context.first_name, shopper_context.last_name) if part)
         return (
             "## Shopper\n"
-            f"The shopper is logged in as {name} ({s.email}). Their first name is {s.first_name}.\n"
+            f"- name: {full_name}\n"
+            f"- first name: {shopper_context.first_name}\n"
+            f"- email: {shopper_context.email}\n"
             "This comes from their account, so it's accurate. Follow the privacy rules for it."
         )
 
     @agent.instructions
-    def current_page(ctx: RunContext[ChatDeps]) -> str:
-        """Which page and product the shopper is looking at (added each reply)."""
-        p = ctx.deps.page
+    def page_context_instructions(ctx: RunContext[ChatDeps]) -> str:
+        """The current page and the currently viewed product, added to the instructions each reply."""
+        page_context = ctx.deps.page_context
+        current_product = page_context.current_product
         lines = ["## Current page"]
-        lines.append(f"The shopper is on this page of the website: {p.page}" if p.page else "The page is unknown.")
-        if p.product:
-            pr = p.product
+        lines.append(
+            f"The shopper is on this page of the website: {page_context.page}" if page_context.page else "The page is unknown."
+        )
+        if current_product:
             lines.append(
                 "They are looking at this product (read from the database just now):\n"
-                f"- product_id: {pr.product_id}\n- name: {pr.name}\n- type: {pr.garment_type}\n"
-                f"- price: ${pr.price:.2f}\n- colors: {', '.join(pr.colors)}\n"
+                f"- product_id: {current_product.product_id}\n"
+                f"- name: {current_product.name}\n"
+                f"- type: {current_product.garment_type}\n"
+                f"- price: ${current_product.price:.2f}\n"
+                f"- colors: {', '.join(current_product.colors)}\n"
                 'When they say "this", "it", "this one" or ask about a color or size without naming a '
-                "product, they mean this product."
+                f"product (for example \"Do you have this in medium?\"), they mean {current_product.name}. "
+                f"For sizes and stock, call size_lookup or stock_lookup with product_id {current_product.product_id}."
             )
         else:
             lines.append("They are not on a product page, so there is no current product.")
@@ -254,16 +263,54 @@ def _cards(product_ids: list[str]) -> tuple[list[ProductCard], list[str]]:
     return cards, kept
 
 
-async def run_chat(turns: list[ChatTurn], shopper: ShopperContext, page: PageContext | None = None) -> ChatOutcome:
+def shopper_context_from_user(user: dict | None) -> ShopperContext:
+    """The shopper's name and email for the agent, from the logged-in user (empty for guests).
+
+    main.py passes the user it found from the login cookie, so identity can't be faked by
+    typing into the chat.
+    """
+    if not user:
+        return ShopperContext()
+    return ShopperContext(
+        logged_in=True,
+        first_name=user.get("first_name"),
+        last_name=user.get("last_name"),
+        email=user.get("email"),
+    )
+
+
+def build_page_context(current_page: str | None, current_product_id: str | None) -> PageContext:
+    """The page the shopper is on, plus the currently viewed product on a product detail page.
+
+    The product is looked up in the catalogue table here, so only its ID is trusted from the
+    browser. An ID that isn't in the database is ignored.
+    """
+    current_product = None
+    if current_product_id:
+        found = get_product(current_product_id)
+        if found:
+            current_product = CurrentProduct(**{k: found[k] for k in CurrentProduct.model_fields})
+    return PageContext(page=current_page, current_product=current_product)
+
+
+async def run_chat(
+    turns: list[ChatTurn],
+    shopper_context: ShopperContext,
+    page_context: PageContext | None = None,
+) -> ChatOutcome:
     """Answer the shopper's newest message.
 
     Three kinds of context reach the agent:
-    - identity: `shopper` (from the login cookie) is added to the instructions
+    - identity: `shopper_context` (name and email) goes into the instructions
     - conversation: earlier `turns` become the model's message history
-    - page: `page` (current page and product, looked up in the database) is added to the instructions
+    - page: `page_context` (current page and current_product) goes into the instructions
     """
     *earlier, latest = turns
-    deps = ChatDeps(shopper=shopper, page=page or PageContext(), agents_used=[SHOPPING_ASSISTANT])
+    deps = ChatDeps(
+        shopper_context=shopper_context,
+        page_context=page_context or PageContext(),
+        agents_used=[SHOPPING_ASSISTANT],
+    )
     try:
         # Nothing runs longer than 3 minutes: past that, the run is cancelled.
         result = await asyncio.wait_for(

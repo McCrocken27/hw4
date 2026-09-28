@@ -100,8 +100,8 @@ The scores section of `main.py` reads Yale's official athletics calendar feed fr
 | `HistoryMessage` | `role`, `content`, `products`, `created_at` | One saved message for logged-in shoppers, matching the columns of the existing `chat_messages` table. |
 | `ShopperContext` | `logged_in`, `first_name`, `last_name`, `email` | Who the Shopping Assistant is talking to, taken from the login cookie, so it can greet shoppers by name and answer "which account am I logged in with?". Nothing else from the account is shared, and helper agents never get any of it. |
 | `CurrentProduct` | `product_id`, `name`, `garment_type`, `price`, `colors` | The product on the page the shopper is viewing, read fresh from the catalogue. Colors are included so color questions can be answered right away; stock is left out on purpose, so the agent always looks it up live. |
-| `PageContext` | `page`, `product` | Where the shopper is (like `/cart`), plus the current product on a product page. |
-| `ChatDeps` | `shopper`, `page`, `agents_used` | Passed to every tool during one reply: the shopper's identity and page (for the main agent only), and which agents ran, for the logs. |
+| `PageContext` | `page`, `current_product` | Where the shopper is (like `/cart`), plus the currently viewed product on a product detail page. |
+| `ChatDeps` | `shopper_context`, `page_context`, `agents_used` | Passed to every tool during one reply: the shopper's name and email and the page context (for the main agent only), and which agents ran, for the logs. |
 
 ### Agent tool results (what the AI sees)
 
@@ -292,13 +292,14 @@ Every chat message goes to `POST /api/chat`. Before the AI sees anything, the ba
 ```
 Browser ──> POST /api/chat { messages, current_page, current_product_id }
                 │
-main.py:  login cookie ──> users table ──> ShopperContext (name, email)
-          current_product_id ──> catalogue table ──> CurrentProduct (or nothing)
+main.py:  login cookie ──> users table ──> user {first_name, last_name, email}
                 │
-agent.py: run_chat(messages, shopper, page)
+agent.py: shopper_context_from_user(user)                    ──> ShopperContext (name, email)
+          build_page_context(current_page, current_product_id) ──> catalogue table ──> PageContext.current_product
+          run_chat(messages, shopper_context, page_context)
             ├─ earlier messages ──> the model's message history
-            ├─ ShopperContext ────> "## Shopper" instructions
-            └─ PageContext ───────> "## Current page" instructions
+            ├─ shopper_context ───> "## Shopper" instructions   (shopper_instructions)
+            └─ page_context ──────> "## Current page" instructions (page_context_instructions)
                 │
           Shopping Assistant ──> database tools (search, filter, description, size, stock lookups)
                              └─> helper agents (get only a question, never identity or page)
@@ -311,11 +312,13 @@ agent.py: run_chat(messages, shopper, page)
 **How:**
 
 1. The login cookie arrives with the message. `main.py` calls `user_for_session()`, which checks the cookie against the sessions table and reads that user's row from `users`.
-2. `main.py` builds a `ShopperContext` (`models.py`) with `logged_in`, `first_name`, `last_name` and `email`.
-3. `agent.py` passes it to the agent in `ChatDeps`. Each reply, the `shopper_identity` instruction adds a section like:
+2. `main.py` passes that user to `shopper_context_from_user()` in `agent.py`, which builds a `ShopperContext` (`models.py`) with `logged_in`, `first_name`, `last_name` and `email`.
+3. `run_chat()` puts it in `ChatDeps.shopper_context`. Each reply, the `shopper_instructions` function adds a section like:
    ```
    ## Shopper
-   The shopper is logged in as Test User (test@campuscustoms.yale.edu). Their first name is Test.
+   - name: Test User
+   - first name: Test
+   - email: test@campuscustoms.yale.edu
    ```
 
 **Safety:**
@@ -344,8 +347,8 @@ Every reply is also recorded in the `agent_log` table: which agents and tools wo
 **How:**
 
 1. The chat window (`ChatWidget.tsx`) reads the page address. If it matches `/products/<product_id>`, it sends that ID as `current_product_id`, along with `current_page`.
-2. `_page_context()` in `main.py` looks the product up in the `catalogue` table itself. Only the ID is trusted from the browser, and an unknown ID is ignored. Both fields must match strict patterns, so anything else (like `../../etc/passwd` or `<script>`) is rejected before it gets this far.
-3. The result is a `PageContext` holding a `CurrentProduct` (`models.py`). Each reply, the `current_page` instruction adds a section like:
+2. `main.py` passes both values to `build_page_context()` in `agent.py`, which looks the product up in the `catalogue` table itself. Only the ID is trusted from the browser, and an unknown ID is ignored. Both fields must match strict patterns, so anything else (like `../../etc/passwd` or `<script>`) is rejected before it gets this far.
+3. The result is a `PageContext` whose `current_product` is a `CurrentProduct` (`models.py`). `run_chat()` puts it in `ChatDeps.page_context`, and each reply the `page_context_instructions` function adds a section like:
    ```
    ## Current page
    The shopper is on this page of the website: /products/yale-dad-hoodie
@@ -355,13 +358,13 @@ Every reply is also recorded in the `agent_log` table: which agents and tools wo
    - type: pullover hoodie
    - price: $68.00
    - colors: navy blue, white
-   When they say "this", "it", "this one" or ask about a color or size without naming a product, they mean this product.
+   When they say "this", "it", "this one" or ask about a color or size without naming a product (for example "Do you have this in medium?"), they mean Yale Dad Hoodie. For sizes and stock, call size_lookup or stock_lookup with product_id yale-dad-hoodie.
    ```
 
 **What this makes possible:**
 
 - "Do you have this in pink?" gets: "No, the Yale Dad Hoodie only comes in navy blue and white," plus suggestions in pink if there are any.
-- "Is this in medium?" gets: the agent calls `stock_lookup` with the current product's ID and answers "in stock in M, with 12 available."
+- "Do you have this in medium?" gets: the agent calls `stock_lookup` with the current product's ID and answers "in stock in M, with 12 available."
 - Off a product page, "Do you have this in navy?" gets a question back: the agent asks which product they mean instead of guessing.
 
 **Stock is never taken from the page context.** It only includes catalogue details. For sizes and stock, the agent always calls the database tools, so answers reflect current inventory.
@@ -376,9 +379,9 @@ Every reply is also recorded in the `agent_log` table: which agents and tools wo
 
 | File | Role |
 |---|---|
-| `backend/models.py` | `ChatRequest` (with `current_page` and `current_product_id`), `ShopperContext` (name and email), `CurrentProduct`, `PageContext`, `ChatDeps` |
-| `backend/main.py` | Builds identity from the login cookie and page context from the database; saves and loads chat history |
-| `backend/agent.py` | `run_chat()` passes history, identity and page to the agent through the `shopper_identity` and `current_page` instructions |
+| `backend/models.py` | `ChatRequest` (with `current_page` and `current_product_id`), `ShopperContext` (name and email), `CurrentProduct`, `PageContext` (with `current_product`), `ChatDeps` (with `shopper_context` and `page_context`) |
+| `backend/main.py` | The chat route: finds the user from the login cookie, then calls `shopper_context_from_user()`, `build_page_context()` and `run_chat()`; saves and loads chat history |
+| `backend/agent.py` | `shopper_context_from_user()` (name and email), `build_page_context()` (looks up `current_product`), and `run_chat()`, which passes history, `shopper_context` and `page_context` to the agent through `shopper_instructions` and `page_context_instructions` |
 | `backend/prompts/prompt.md` | The "What you know about the shopper and the page" section, plus the privacy rules |
 | `backend/tools.py` | The database-backed inventory tools, plus `get_product()` for looking up the current product |
 | `frontend/src/ChatWidget.tsx`, `frontend/src/api.ts` | Send the current page and product ID with each message |

@@ -152,19 +152,22 @@ class PageContext(BaseModel):
     """Where the shopper is on the website when they send a message."""
 
     page: str | None = Field(default=None, description="The page's path, e.g. /products/yale-dad-hoodie or /cart")
-    product: CurrentProduct | None = Field(default=None, description="Set only on a product detail page")
+    current_product: CurrentProduct | None = Field(
+        default=None, description="The product being viewed; set only on a product detail page"
+    )
 
 
 @dataclass
 class ChatDeps:
     """Passed to every tool during one chat reply.
 
-    The shopper's identity and page stay with the main agent; helper agents only ever get
-    the question. agents_used collects which agents worked on the reply, for the agent log.
+    shopper_context (name and email) and page_context (current page and product) stay with
+    the main agent; helper agents only ever get the question. agents_used collects which
+    agents worked on the reply, for the agent log.
     """
 
-    shopper: ShopperContext
-    page: PageContext = field(default_factory=PageContext)
+    shopper_context: ShopperContext
+    page_context: PageContext = field(default_factory=PageContext)
     agents_used: list[str] = field(default_factory=list)
 
     def used(self, agent_name: str) -> None:
