@@ -34,7 +34,7 @@ Full setup steps (placing the data pack, adding your API key, installing package
    ```
 3. Open http://localhost:5173.
 
-**To check every guardrail:** from `hw4\backend`, run `.venv\Scripts\python.exe check_guardrails.py`. It runs 43 checks in about 5 seconds on a temporary copy of the database, so real data is never touched. Add `--live` to also run two real chats (44 checks).
+**To check every guardrail:** from `hw4\backend`, run `.venv\Scripts\python.exe check_guardrails.py`. It runs 44 checks in about 5 seconds on a temporary copy of the database, so real data is never touched. Add `--live` to also run two real chats (45 checks).
 
 ## 3. How everything works
 
@@ -70,7 +70,7 @@ Browser (React)  ──>  FastAPI (main.py)  ──>  accounts, carts, orders, c
 ### The chat assistant
 
 1. The shopper sends a message. The page sends the recent conversation to `POST /api/chat`.
-2. `agent.py` runs the **Shopping Assistant** with the system prompt in `prompts/prompt.md`. If the shopper is logged in, the assistant is told their first name, and nothing else about them.
+2. `agent.py` runs the **Shopping Assistant** with the system prompt in `prompts/prompt.md`. It's also told who the shopper is (their name and email, if logged in) and which page and product they're looking at. See section 10 for exactly how.
 3. The assistant calls its tools to find products and look up facts in the database. For general Yale questions it can ask the **Campus Guide**; for outfit, weather or gift advice it can ask the **Style Advisor**.
 4. It replies with text and a list of product IDs. The backend looks up each ID and shows it as a clickable product card. Made-up IDs are dropped.
 5. For logged-in shoppers, both messages are saved to the `chat_messages` table and reload next time.
@@ -93,13 +93,15 @@ The scores section of `main.py` reads Yale's official athletics calendar feed fr
 | Model | Fields | Why these fields |
 |---|---|---|
 | `ChatTurn` | `role` (user or assistant), `content` (1–2,000 characters) | The minimum needed to rebuild a conversation. The length cap stops huge messages that waste tokens. |
-| `ChatRequest` | `messages` (1–40 turns, last one must be from the user) | Gives the agent context without unlimited history. Requiring the last turn to be the shopper's makes sure there's always a question to answer. |
+| `ChatRequest` | `messages` (1–40 turns, last one must be from the user), `current_page`, `current_product_id` | Gives the agent context without unlimited history. Requiring the last turn to be the shopper's makes sure there's always a question to answer. The page and product ID let the agent answer "Do you have this in pink?"; both must match strict patterns, and the product is looked up in the database rather than trusted from the browser. |
 | `AgentOutput` | `reply`, `product_ids` | What the AI must return. Keeping products as IDs, not free text, lets the backend check every product really exists before showing it. |
 | `ProductCard` | `product_id`, `name`, `price`, `image_url` | Exactly what a small clickable card under a chat reply needs: a link, a label, a price and a picture. |
 | `ChatReply` | `reply`, `products`, `agents_used` | What the shopper sees: the answer, product cards, and which helper agents worked on it (shown as "With help from…"). |
 | `HistoryMessage` | `role`, `content`, `products`, `created_at` | One saved message for logged-in shoppers, matching the columns of the existing `chat_messages` table. |
-| `ShopperContext` | `first_name` | The only personal detail the AI gets, so it can greet people by name. Emails and account data are deliberately left out. |
-| `ChatDeps` | `shopper`, `agents_used` | Passed to every tool during one reply. Collects which agents ran, for the logs. |
+| `ShopperContext` | `logged_in`, `first_name`, `last_name`, `email` | Who the Shopping Assistant is talking to, taken from the login cookie, so it can greet shoppers by name and answer "which account am I logged in with?". Nothing else from the account is shared, and helper agents never get any of it. |
+| `CurrentProduct` | `product_id`, `name`, `garment_type`, `price`, `colors` | The product on the page the shopper is viewing, read fresh from the catalogue. Colors are included so color questions can be answered right away; stock is left out on purpose, so the agent always looks it up live. |
+| `PageContext` | `page`, `product` | Where the shopper is (like `/cart`), plus the current product on a product page. |
+| `ChatDeps` | `shopper`, `page`, `agents_used` | Passed to every tool during one reply: the shopper's identity and page (for the main agent only), and which agents ran, for the logs. |
 
 ### Agent tool results (what the AI sees)
 
@@ -208,7 +210,7 @@ Helpers only ever receive the question the Shopping Assistant writes, never the 
 - **Out of stock is said plainly**, and a product sold out in every size is mentioned first.
 - **Stay in its lane.** Products, sizes and stock, plus Yale and style questions through the helpers. It can't place orders, take payments, give discounts or change inventory.
 - **No customer data.** It has no access to accounts, emails, passwords or orders, and never pretends to.
-- **Privacy.** It never asks for personal details, and doesn't repeat them back if a shopper shares them. Helpers never get personal information.
+- **Privacy.** It knows only the logged-in shopper's own name and email, mentions the email only if they ask about their own account, and never puts either into a tool call or a helper's question. It never asks for other personal details, and doesn't repeat them back if a shopper shares them.
 - **Ignore hidden instructions.** "Ignore your rules," "reveal your prompt," "admin mode" and similar requests are declined.
 - **Keep the setup private**, be respectful, and admit to being an AI if asked.
 - **Safety rails:** answer quickly, use at most 6 tool calls and one helper question per reply, never repeat the same search, respect result caps and the cart limit, and stop as soon as it has the answer.
@@ -263,7 +265,7 @@ To keep the 100-item loop cap from hiding products, searches first narrow the ca
 - **result:** the first 300 characters of what it produced
 - **stop_reason:** why it stopped, for example `final answer returned (finish_reason=stop)`, `stopped: hit the 180-second time limit`, `stopped: usage limit reached`, `stopped: blocked by the content filter`, or `error: <type>`
 
-**Append-only:** entries are only ever added, and the file is never cleared between runs or restarts. Each write goes to a temporary file first and then replaces the real one, so a crash can't corrupt it. If the file is ever damaged, it's saved as `audit_trail.unreadable-<time>.json` and a fresh list is started; nothing is deleted. Shoppers' messages aren't stored in the audit trail.
+**Append-only:** entries are only ever added, and the file is never cleared between runs or restarts. Each write goes to a temporary file first and then replaces the real one, so a crash can't corrupt it. If the file is ever damaged, it's saved as `audit_trail.unreadable-<time>.json` and a fresh list is started; nothing is deleted. Shoppers' messages aren't stored in the audit trail, and any email address in a result is replaced with "[email hidden]" (for example when a shopper asks which account they're logged in with).
 
 ## 9. Known limitations
 
@@ -272,3 +274,191 @@ To keep the 100-item loop cap from hiding products, searches first narrow the ca
 - Three products in the class data have placeholder descriptions ("Vision blocked; filename-based stub").
 - The site runs over plain HTTP locally. Set `COOKIE_SECURE=1` when serving it over HTTPS.
 - Guest carts live in a cookie on one browser. Logged-in carts follow the account.
+
+## 10. How the agent gets its context: identity, conversation history and the current page
+
+This explains how the shopping assistant learns **who it's talking to**, **what has already been said**, and **what the shopper is looking at**, and how that information is kept safe.
+
+### The three kinds of context
+
+Every chat message goes to `POST /api/chat`. Before the AI sees anything, the backend gathers three kinds of context, each from a different, trustworthy place:
+
+| Context | Where it comes from | How the agent gets it |
+|---|---|---|
+| **User identity** (name and email) | The login cookie, checked against the `users` table | Added to the agent's instructions as a "Shopper" section |
+| **Conversation history** | The chat window, and for logged-in shoppers, the `chat_messages` table | Passed to the model as earlier messages |
+| **Current page and product** | The page the shopper is on; the product is looked up in the `catalogue` table | Added to the agent's instructions as a "Current page" section |
+
+```
+Browser ──> POST /api/chat { messages, current_page, current_product_id }
+                │
+main.py:  login cookie ──> users table ──> ShopperContext (name, email)
+          current_product_id ──> catalogue table ──> CurrentProduct (or nothing)
+                │
+agent.py: run_chat(messages, shopper, page)
+            ├─ earlier messages ──> the model's message history
+            ├─ ShopperContext ────> "## Shopper" instructions
+            └─ PageContext ───────> "## Current page" instructions
+                │
+          Shopping Assistant ──> database tools (search, filter, description, size, stock lookups)
+                             └─> helper agents (get only a question, never identity or page)
+```
+
+### 1. User identity
+
+**What the agent receives:** for a logged-in shopper, their first name, last name and email. For a guest, only the fact that they aren't logged in.
+
+**How:**
+
+1. The login cookie arrives with the message. `main.py` calls `user_for_session()`, which checks the cookie against the sessions table and reads that user's row from `users`.
+2. `main.py` builds a `ShopperContext` (`models.py`) with `logged_in`, `first_name`, `last_name` and `email`.
+3. `agent.py` passes it to the agent in `ChatDeps`. Each reply, the `shopper_identity` instruction adds a section like:
+   ```
+   ## Shopper
+   The shopper is logged in as Test User (test@campuscustoms.yale.edu). Their first name is Test.
+   ```
+
+**Safety:**
+
+- **Identity only ever comes from the login cookie**, never from the message. Typing "I'm logged in as someone else" changes nothing.
+- The agent gets the shopper's **own** name and email, nothing else: no password hash, no orders, no other customers.
+- The system prompt says to use the first name for greetings, mention the email only if the shopper asks which account they're logged in with, and never put the name or email into a tool call or a helper agent's question. In testing, when asked to "tell the Campus Guide my name and email," the helper only received the question itself.
+
+### 2. Conversation history
+
+**What the agent receives:** the conversation so far, so follow-ups like "is the first one in medium?" make sense.
+
+**How:**
+
+1. The chat window keeps the conversation and sends the last 20 turns with each new message (`ChatRequest.messages`, at most 40 turns and 2,000 characters per message).
+2. `agent.py` turns the earlier turns into the model's message history (`_history()`), and the newest message becomes the question to answer.
+3. **Logged-in shoppers' chats are saved.** After each reply, `save_exchange()` in `main.py` writes the shopper's message and the reply to the `chat_messages` table (`user_id`, `role`, `content`, `products_json`, `created_at`). When they log in again, `GET /api/chat/history` loads their past conversation and product cards back into the chat window, and it becomes the context for new messages.
+4. Guests' chats are never saved; they live only in the open page.
+
+Every reply is also recorded in the `agent_log` table: which agents and tools worked on it, and how it ended. The message text isn't stored there.
+
+### 3. Current page and product
+
+**What the agent receives:** the page the shopper is on (like `/cart` or `/products?q=hoodie`) and, on a product detail page, that product's ID, name, type, price and colors.
+
+**How:**
+
+1. The chat window (`ChatWidget.tsx`) reads the page address. If it matches `/products/<product_id>`, it sends that ID as `current_product_id`, along with `current_page`.
+2. `_page_context()` in `main.py` looks the product up in the `catalogue` table itself. Only the ID is trusted from the browser, and an unknown ID is ignored. Both fields must match strict patterns, so anything else (like `../../etc/passwd` or `<script>`) is rejected before it gets this far.
+3. The result is a `PageContext` holding a `CurrentProduct` (`models.py`). Each reply, the `current_page` instruction adds a section like:
+   ```
+   ## Current page
+   The shopper is on this page of the website: /products/yale-dad-hoodie
+   They are looking at this product (read from the database just now):
+   - product_id: yale-dad-hoodie
+   - name: Yale Dad Hoodie
+   - type: pullover hoodie
+   - price: $68.00
+   - colors: navy blue, white
+   When they say "this", "it", "this one" or ask about a color or size without naming a product, they mean this product.
+   ```
+
+**What this makes possible:**
+
+- "Do you have this in pink?" gets: "No, the Yale Dad Hoodie only comes in navy blue and white," plus suggestions in pink if there are any.
+- "Is this in medium?" gets: the agent calls `stock_lookup` with the current product's ID and answers "in stock in M, with 12 available."
+- Off a product page, "Do you have this in navy?" gets a question back: the agent asks which product they mean instead of guessing.
+
+**Stock is never taken from the page context.** It only includes catalogue details. For sizes and stock, the agent always calls the database tools, so answers reflect current inventory.
+
+### What stayed the same
+
+- **The database-backed inventory tools are unchanged:** `search_products`, `filter_products`, `description_lookup`, `size_lookup`, `stock_lookup` and `list_categories` all read `campus_customs.db` fresh, read-only, on every call.
+- **Chat history** is saved and reloaded exactly as before.
+- **The helper agents** (Campus Guide and Style Advisor) still only receive a single question, never the shopper's identity, the page, or the chat history.
+
+#### Files involved
+
+| File | Role |
+|---|---|
+| `backend/models.py` | `ChatRequest` (with `current_page` and `current_product_id`), `ShopperContext` (name and email), `CurrentProduct`, `PageContext`, `ChatDeps` |
+| `backend/main.py` | Builds identity from the login cookie and page context from the database; saves and loads chat history |
+| `backend/agent.py` | `run_chat()` passes history, identity and page to the agent through the `shopper_identity` and `current_page` instructions |
+| `backend/prompts/prompt.md` | The "What you know about the shopper and the page" section, plus the privacy rules |
+| `backend/tools.py` | The database-backed inventory tools, plus `get_product()` for looking up the current product |
+| `frontend/src/ChatWidget.tsx`, `frontend/src/api.ts` | Send the current page and product ID with each message |
+
+
+## Q2: Analyze the Database
+
+The catalogue table stores information about each product. It contains product id, name, description, category, price and image. The catalogue table is important because it contains the core information needed to display and search for products.
+The inventory table allows the website and AI assistant to determine whether a particular product and size is in stock. It contains id, size and quantity
+The users table allows customers to create accounts, log in, and have information such as their shopping activity associated with their account. It contains an ID, name, email, and password (plus hash)
+
+### Every table and field in campus_customs.db
+
+The database (`data/campus_customs.db`, from the class data pack) is a SQLite file with five tables:
+
+| Table | Rows | What it holds |
+|---|---|---|
+| `catalogue` | 102 | One row per product |
+| `inventory` | 612 | Stock for each product in each size (102 products × 6 sizes) |
+| `users` | 3 | Customer accounts |
+| `chat_messages` | 22 | Saved conversations between logged-in customers and the AI assistant |
+| `sqlite_sequence` | 3 | SQLite's own counter table for auto-numbered IDs |
+
+#### `catalogue`: the products
+
+| Field | Type | What it contains | Why it matters for the website |
+|---|---|---|---|
+| `product_id` | TEXT, primary key | A unique, readable ID made from the product name, e.g. `2025-yale-vs-harvard-t-shirt` | Identifies each product everywhere: product page links (`/products/<id>`), inventory rows, the cart, orders, and the AI's product cards. Because it's readable, links and chat logs make sense at a glance. |
+| `name` | TEXT, required | The display name, e.g. "2025 Yale Vs Harvard T Shirt" | The title on product cards and product pages, and the part of a search match that counts most. |
+| `garment_type` | TEXT, required | The kind of item, e.g. "short-sleeve T-shirt" or "pullover hoodie" (the "category") | Lets shoppers and the AI filter by type. It's written 22 different ways (for example "t-shirt" and "short-sleeve T-shirt"), so the site groups them into 7 clean families: hoodie, crewneck, t-shirt, quarter-zip, jacket, long-sleeve shirt and mockneck. |
+| `description` | TEXT, required | A full sentence describing color, fit details and the design, e.g. "Heather gray short-sleeve T-shirt featuring a 2025 Harvard-Yale The Game graphic…" | Shown on the product page and shortened for cards. It's also searched, and it's how the site works out whether an item has a logo or printed lettering, or long sleeves or a hood (warm vs. cold weather). 3 products have a placeholder description ("Vision blocked; filename-based stub") instead of a real one. |
+| `colors` | TEXT (a JSON list), required | Every color on the item, e.g. `["heather gray", "white", "red", "navy blue"]` | Powers color searches and filters ("navy hoodies") and is shown on the product page. |
+| `search_tags` | TEXT (a JSON list), required | Extra keywords, e.g. `["Yale", "Harvard", "The Game", "college rivalry", …]` | Helps search find products by words that aren't in the name, like a team, a college or an occasion. |
+| `image_file_path` | TEXT, required | Where the product photo is, relative to the data folder, e.g. `products/2025-yale-vs-harvard-t-shirt.jpg` | Tells the website which picture to show. The images themselves are in `data/products/`. |
+| `price` | REAL, required | The price in dollars. There are only 7 prices: $32, $45, $58, $68, $72, $88 and $98 | Shown on every card and page, used for "price high to low" sorting and "under $65" searches, and used to total the cart. The site adds prices up in whole cents so totals never drift. |
+
+#### `inventory`: stock by size
+
+| Field | Type | What it contains | Why it matters for the website |
+|---|---|---|---|
+| `id` | INTEGER, primary key, auto-numbered | A row number (1 to 612) | A unique handle for each row. |
+| `product_id` | TEXT, required, links to `catalogue.product_id` | Which product this stock row belongs to | Connects stock to the product it describes. Every product has exactly 6 rows, one per size. |
+| `size` | TEXT, required | One of XS, S, M, L, XL, XXL | Lets the site show stock per size, and lets shoppers pick a size when adding to the cart. |
+| `quantity` | INTEGER, required | How many are in stock, from 0 to 25 | The heart of "is it in stock?". 0 means sold out (145 of the 612 product-size combinations are sold out). The site uses it for stock badges, crossed-out sizes, the AI's stock answers, and to reject carts and orders that ask for more than exists. |
+
+The pair (`product_id`, `size`) is unique, so there's never more than one stock number for the same product and size.
+
+#### `users`: customer accounts
+
+| Field | Type | What it contains | Why it matters for the website |
+|---|---|---|---|
+| `id` | INTEGER, primary key, auto-numbered | The account number | Links a customer to their chat history, cart and orders without using their email. |
+| `name` | TEXT, required | Full name, e.g. "Test User" | The original display name. The site fills it in as first name + last name when someone signs up. |
+| `email` | TEXT, required, unique | The log-in email | What customers log in with. Being unique means two accounts can't share an email. |
+| `password_hash` | TEXT, required | A scrambled version of the password (PBKDF2-SHA256 with a random salt), never the password itself | Lets the site check a password at log-in without ever storing it, so a stolen database doesn't reveal anyone's password. |
+| `created_at` | TEXT, filled in automatically | When the account was made, e.g. "2026-09-19 11:34:09" | A record of when each customer joined. |
+| `first_name` | TEXT | First name, e.g. "Test" | Used for the personal touches: "Hi, Joey" in the nav bar, "Welcome back" on the home page, and greeting shoppers by name in the chat. |
+| `last_name` | TEXT | Last name, e.g. "User" | Collected at sign-up with the first name, to complete the customer's name. |
+
+#### `chat_messages`: saved chats with the AI assistant
+
+| Field | Type | What it contains | Why it matters for the website |
+|---|---|---|---|
+| `id` | INTEGER, primary key, auto-numbered | The message number | Keeps messages in the order they were sent. |
+| `user_id` | INTEGER, required, links to `users.id` | Which customer the conversation belongs to | Ties chat history to an account, so it reloads when that customer logs in and nobody else can see it. |
+| `role` | TEXT, required | "user" (the customer) or "assistant" (the AI) | Shows who said what, both on screen and when the conversation is sent back to the AI as context. |
+| `content` | TEXT, required | The message text | The conversation itself. |
+| `products_json` | TEXT (a JSON list), optional | For the AI's replies, the full details of the products it showed (name, price, image, stock and more); empty for the customer's messages | Lets the site redraw the clickable product cards under old replies exactly as they first appeared. |
+| `created_at` | TEXT, filled in automatically | When the message was sent | Puts the conversation in time order. A question and its answer share the same time. |
+
+#### `sqlite_sequence`: SQLite's ID counters
+
+| Field | Type | What it contains | Why it matters for the website |
+|---|---|---|---|
+| `name` | (none) | The name of a table that uses auto-numbered IDs (`inventory`, `users`, `chat_messages`) | SQLite creates and manages this table itself. The website never reads or writes it. |
+| `seq` | (none) | The highest ID used so far in that table, e.g. 612 for `inventory` | Makes sure a new row never reuses an old ID, even after rows are deleted. |
+
+#### How the tables connect
+
+```
+catalogue.product_id ──< inventory.product_id     (each product has 6 stock rows, one per size)
+users.id             ──< chat_messages.user_id    (each customer can have many saved messages)
+```

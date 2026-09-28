@@ -13,6 +13,7 @@ Every prompt I gave the AI assistant (Claude Code) during Homework 4, word for w
 
 ## Q2
 
+0. (added later, after Q13) For Q2, can you add this to the harness? Analyze backend/campus_customs.db. Identify every table and every field in each table. Explain what each field contains and why it is important for building the Campus Customs website. And then also ## Q2: Analyze the Database The catalogue table stores information about each product. It contains product id, name, description, category, price and image. The catalogue table is important because it contains the core information needed to display and search for products. The inventory table allows the website and AI assistant to determine whether a particular product and size is in stock. It contains id, size and quantity The users table allows customers to create accounts, log in, and have information such as their shopping activity associated with their account. It contains an ID, name, email, and password (plus hash)
 1. For Q2, please make output/harness.md and put the following in it: "the catalogue is important because it details the products that our store sells. It's broken out in a way where Campus Customs can organize it and a shopper can tell what the product is. Inventory is important as it lays out how much of everything Campus Customs has, so it knows how much it can sell of each item and each size. Users is important because it outlays the people who shop at Campus Customs, so who CC needs to serve."
 
 ## Q3
@@ -52,6 +53,7 @@ Every prompt I gave the AI assistant (Claude Code) during Homework 4, word for w
 2. Let's save a user's chat history in the database under chat messages. Fill in all the appropriate fields based on the fields that are already in there. Feel free to use any agent to answer any question as long as it doesn't give away any backend or private information. Also log the agents you use. This only needs to be done for logged in users. Also, the chat bot should be able to filter products for them. It can do that by type of clothing, size, color, logo/script on shirt, and warm/cold weather clothing. If it has long sleeves or a hood put it in cold, if not, warm
 3. Wow CC, I'm impressed
 4. Boola Boola
+5. (added later, after Q13) Thank you. Now in Q8,  update the shopping assistant so it receives the logged-in user's name and email. Also pass the currently viewed product to the assistant when the user is on a product detail page, so questions such as "Do you have this in pink?" can be answered without the user naming the product. Preserve the existing chat-history and database backed inventory tools. Update harness.md to explain how user identity, conversation history, and current-page/product context are provided to the agent.
 
 ## Q9
 
@@ -77,6 +79,8 @@ Every prompt I gave the AI assistant (Claude Code) during Homework 4, word for w
 6. [Screenshot: Products page searching "hoo" with the size/stock bar open] Dynamic search and Inventory level
 7. [Screenshot: same view, also showing the "in stock" badges on each card] replace that one with this one
 8. [Screenshot: Products page sorted by Name: A to Z] Filter from Problem 9
+9. (added later, after Q13) [Screenshot: chat answering how many Basic Hoodie Big Yales are in stock] Let's hold on that until the end. Can you also add this screenshot to number 11? Caption it: Asking Chat to show inventory
+10. (added later, after Q13) [2 screenshots: chat listing the quarter-zips, then the product cards under the reply] Add this one as well with the caption 'Chat and dynamic product cards'
 
 ## Q12
 
@@ -87,3 +91,4 @@ Every prompt I gave the AI assistant (Claude Code) during Homework 4, word for w
 ## Q13
 
 1. [Screenshot: expected file layout for hw4/ and the local-only data/ pack] thanks CC! For Q13, put all our code in a folder named hw4 and push it to a public GitHub repository. DO NOT put my real .env, campus_customs.db, or product images on the GitHub repo. Use .gitignore. Include .env.example with placeholders. Follow the attached file layout. Make sure the agent itself is the four files under backend/ (prompts.prompt, agent, tools, models) and README.md should explain how to run and front and and back end after placing the data pack
+2. Now do the wrap-up and push everything to GitHub. Thanks CC

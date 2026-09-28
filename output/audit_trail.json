@@ -16,5 +16,17 @@
     "name": "Shopping Assistant",
     "result": "We have **20 in stock in M**, but the cart limit is **10 of the same product and size**. You can add up to 10 Champion Reverse Weave Hoodies in M from the product card; I can’t add them for you.",
     "stop_reason": "final answer returned (finish_reason=stop)"
+  },
+  {
+    "time": "2026-09-28T00:07:08+00:00",
+    "name": "Shopping Assistant",
+    "result": "We have **60 Basic Hoodie Big Yale** hoodies in stock right now: XS 15, S 5, M 5, L 8, XL 2, and XXL 25.",
+    "stop_reason": "final answer returned (finish_reason=stop)"
+  },
+  {
+    "time": "2026-09-28T00:09:16+00:00",
+    "name": "Shopping Assistant",
+    "result": "Boola Boola! We have **11 quarter-zips** right now: - Benjamin Franklin 1/4 Zip - Berkeley 1/4 Zip - Branford 1/4 Zip - Morse 1/4 Zip - School of Architecture Crewneck - School of Art 1/4 Zip - School of Engineering 1/4 Zip - School of Medicine 1/4 Zip - School of Public Health 1/4 Zip - Trumbull 1…",
+    "stop_reason": "final answer returned (finish_reason=stop)"
   }
 ]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { formatPrice, getChatHistory, sendChat, type ChatMessage } from './api'
+import { Link, useLocation } from 'react-router-dom'
+import { formatPrice, getChatHistory, sendChat, type ChatMessage, type PageInfo } from './api'
 import { useAuth } from './auth'
 
 const GREETING: ChatMessage = {
@@ -28,6 +28,14 @@ export default function ChatWidget() {
   const [thinking, setThinking] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
+  const location = useLocation()
+
+  // The page the shopper is on, and the product if it's a product page (/products/<id>),
+  // so the assistant can answer "Do you have this in pink?".
+  function pageInfo(): PageInfo {
+    const match = location.pathname.match(/^\/products\/([a-z0-9][a-z0-9-]*)$/)
+    return { current_page: location.pathname + location.search, current_product_id: match ? match[1] : null }
+  }
 
   // Logged-in shoppers see their saved chat; logging out clears it from the screen.
   useEffect(() => {
@@ -61,7 +69,7 @@ export default function ChatWidget() {
     setInput('')
     setThinking(true)
     try {
-      const { reply, products, agents_used } = await sendChat(history.slice(1))
+      const { reply, products, agents_used } = await sendChat(history.slice(1), pageInfo())
       setMessages((m) => [...m, { role: 'assistant', content: reply, products, agents_used }])
     } catch (err) {
       const reason = (err as Error).message

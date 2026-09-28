@@ -45,12 +45,14 @@ from models import (
     CartLine,
     ChatReply,
     ChatRequest,
+    CurrentProduct,
     GameResult,
     HistoryMessage,
     LoginRequest,
     LoopLimitReached,
     OrderLine,
     OrderReceipt,
+    PageContext,
     ProductCard,
     ProductPage,
     PublicUser,
@@ -1053,6 +1055,16 @@ def product(product_id: str):
 # ---------- chat ----------
 
 
+def _page_context(body: ChatRequest) -> PageContext:
+    """Where the shopper is. The product is looked up in the database; unknown IDs are dropped."""
+    product = None
+    if body.current_product_id:
+        found = tools.get_product(body.current_product_id)
+        if found:
+            product = CurrentProduct(**{k: found[k] for k in CurrentProduct.model_fields})
+    return PageContext(page=body.current_page, product=product)
+
+
 @app.post("/api/chat", response_model=ChatReply)
 async def chat(body: ChatRequest, request: Request, cc_session: str | None = Cookie(default=None)):
     """Send the conversation to the shopping agent and return its reply plus product cards.
@@ -1064,9 +1076,20 @@ async def chat(body: ChatRequest, request: Request, cc_session: str | None = Coo
         raise HTTPException(
             status_code=429, detail="You're sending messages quickly. Please wait a minute."
         )
+    # Identity comes from the login cookie, never from the message body, so nobody can
+    # claim to be someone else.
     user = user_for_session(cc_session)
-    shopper = ShopperContext(first_name=user["first_name"] if user else None)
-    result = await run_chat(body.messages, shopper)
+    shopper = (
+        ShopperContext(
+            logged_in=True,
+            first_name=user["first_name"],
+            last_name=user["last_name"],
+            email=user["email"],
+        )
+        if user
+        else ShopperContext()
+    )
+    result = await run_chat(body.messages, shopper, _page_context(body))
 
     message_id = None
     if user and result.outcome == "answered":

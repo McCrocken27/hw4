@@ -170,6 +170,9 @@ with TestClient(main.app) as c:
     agent.record_audit("Test Agent", "second", "final answer returned")
     trail = json.loads(agent.AUDIT_PATH.read_text(encoding="utf-8"))
     check("New entries are added to the end; nothing is removed", len(trail) == before + 2 and trail[-1]["result"] == "second")
+    agent.record_audit("Test Agent", "You're logged in with someone@example.com.", "final answer returned")
+    last = json.loads(agent.AUDIT_PATH.read_text(encoding="utf-8"))[-1]["result"]
+    check("Email addresses are hidden in the audit trail", "@" not in last and "[email hidden]" in last)
     agent.AUDIT_PATH.write_text("{ broken json", encoding="utf-8")
     agent.record_audit("Test Agent", "after repair", "final answer returned")
     backups = list(TMP.glob("audit_trail.unreadable-*.json"))

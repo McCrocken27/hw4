@@ -49,6 +49,7 @@ from models import (
     ChatDeps,
     ChatReply,
     ChatTurn,
+    PageContext,
     ProductCard,
     ShopperContext,
 )
@@ -159,10 +160,36 @@ def build_agent() -> Agent[ChatDeps, AgentOutput]:
     )
 
     @agent.instructions
-    def shopper_name(ctx: RunContext[ChatDeps]) -> str:
-        if ctx.deps.shopper.first_name:
-            return f"The shopper is logged in. Their first name is {ctx.deps.shopper.first_name}."
-        return "The shopper is not logged in, so you don't know their name."
+    def shopper_identity(ctx: RunContext[ChatDeps]) -> str:
+        """Who the shopper is, from their login (added to the instructions each reply)."""
+        s = ctx.deps.shopper
+        if not s.logged_in:
+            return "## Shopper\nThe shopper is not logged in, so you don't know their name or email."
+        name = " ".join(part for part in (s.first_name, s.last_name) if part)
+        return (
+            "## Shopper\n"
+            f"The shopper is logged in as {name} ({s.email}). Their first name is {s.first_name}.\n"
+            "This comes from their account, so it's accurate. Follow the privacy rules for it."
+        )
+
+    @agent.instructions
+    def current_page(ctx: RunContext[ChatDeps]) -> str:
+        """Which page and product the shopper is looking at (added each reply)."""
+        p = ctx.deps.page
+        lines = ["## Current page"]
+        lines.append(f"The shopper is on this page of the website: {p.page}" if p.page else "The page is unknown.")
+        if p.product:
+            pr = p.product
+            lines.append(
+                "They are looking at this product (read from the database just now):\n"
+                f"- product_id: {pr.product_id}\n- name: {pr.name}\n- type: {pr.garment_type}\n"
+                f"- price: ${pr.price:.2f}\n- colors: {', '.join(pr.colors)}\n"
+                'When they say "this", "it", "this one" or ask about a color or size without naming a '
+                "product, they mean this product."
+            )
+        else:
+            lines.append("They are not on a product page, so there is no current product.")
+        return "\n".join(lines)
 
     @agent.tool
     async def ask_campus_guide(ctx: RunContext[ChatDeps], question: str) -> str:
@@ -227,10 +254,16 @@ def _cards(product_ids: list[str]) -> tuple[list[ProductCard], list[str]]:
     return cards, kept
 
 
-async def run_chat(turns: list[ChatTurn], shopper: ShopperContext) -> ChatOutcome:
-    """Answer the shopper's newest message, using earlier turns as context."""
+async def run_chat(turns: list[ChatTurn], shopper: ShopperContext, page: PageContext | None = None) -> ChatOutcome:
+    """Answer the shopper's newest message.
+
+    Three kinds of context reach the agent:
+    - identity: `shopper` (from the login cookie) is added to the instructions
+    - conversation: earlier `turns` become the model's message history
+    - page: `page` (current page and product, looked up in the database) is added to the instructions
+    """
     *earlier, latest = turns
-    deps = ChatDeps(shopper=shopper, agents_used=[SHOPPING_ASSISTANT])
+    deps = ChatDeps(shopper=shopper, page=page or PageContext(), agents_used=[SHOPPING_ASSISTANT])
     try:
         # Nothing runs longer than 3 minutes: past that, the run is cancelled.
         result = await asyncio.wait_for(
@@ -282,7 +315,8 @@ async def run_chat(turns: list[ChatTurn], shopper: ShopperContext) -> ChatOutcom
 # - If the file can't be read (for example someone edited it by hand and broke the JSON),
 #   it's copied to audit_trail.unreadable-<time>.json and a new list is started. Nothing
 #   is deleted.
-# - Shoppers' messages are not stored here, only a short piece of each agent's result.
+# - Shoppers' messages are not stored here, only a short piece of each agent's result,
+#   with any email address replaced by "[email hidden]".
 # ============================================================================
 
 AUDIT_PATH = Path(__file__).resolve().parent.parent / "output" / "audit_trail.json"
@@ -291,8 +325,12 @@ RESULT_CHARS = 300
 _audit_lock = threading.Lock()
 
 
+EMAIL_ADDRESS = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
+
+
 def _clip_result(text: str) -> str:
-    text = " ".join(str(text).split())
+    """Shorten a result for the audit trail, blanking out any email address."""
+    text = EMAIL_ADDRESS.sub("[email hidden]", " ".join(str(text).split()))
     return text if len(text) <= RESULT_CHARS else text[: RESULT_CHARS - 1].rstrip() + "…"
 
 

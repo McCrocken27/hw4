@@ -61,6 +61,20 @@
         background: var(--blue-light);
       }
 
+      /* Two screenshots side by side for one check (stacked on narrow screens). */
+      .check-images {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+        align-items: start;
+        gap: 1px;
+        border-bottom: 1px solid var(--border);
+        background: var(--border);
+      }
+
+      .check-images img {
+        border-bottom: none;
+      }
+
       .check figcaption {
         padding: 1rem 1.25rem 1.2rem;
         line-height: 1.55;
@@ -112,6 +126,34 @@
         <figcaption>
           <span class="check-number">Check 2</span>
           Filter from Problem 9
+        </figcaption>
+      </figure>
+
+      <figure class="check">
+        <img
+          src="app_check_images/03-chat-inventory.png"
+          alt="Campus Customs Chat: asked how many Basic Hoodie Big Yales are in stock, the assistant answers 60 with the count for each size and shows the product card"
+        />
+        <figcaption>
+          <span class="check-number">Check 3</span>
+          Asking Chat to show inventory
+        </figcaption>
+      </figure>
+
+      <figure class="check">
+        <div class="check-images">
+          <img
+            src="app_check_images/04-chat-product-cards-1.png"
+            alt="Campus Customs Chat: asked to show the quarter-zips, the assistant lists 11 of them"
+          />
+          <img
+            src="app_check_images/04-chat-product-cards-2.png"
+            alt="The same chat reply scrolled down, showing clickable product cards with a photo, name and price for each quarter-zip"
+          />
+        </div>
+        <figcaption>
+          <span class="check-number">Check 4</span>
+          Chat and dynamic product cards
         </figcaption>
       </figure>
     </main>

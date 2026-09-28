@@ -108,7 +108,10 @@ const CHAT_CONTEXT_TURNS = 20
 // The server stops a reply after 3 minutes; the page gives up a few seconds later.
 const CHAT_TIMEOUT_MS = 185_000
 
-export async function sendChat(messages: ChatMessage[]) {
+// Where the shopper is when they send a message. The server looks the product up itself.
+export type PageInfo = { current_page: string; current_product_id: string | null }
+
+export async function sendChat(messages: ChatMessage[], page: PageInfo) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
   try {
@@ -117,6 +120,7 @@ export async function sendChat(messages: ChatMessage[]) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: messages.slice(-CHAT_CONTEXT_TURNS).map(({ role, content }) => ({ role, content })),
+        ...page,
       }),
       signal: controller.signal,
     })

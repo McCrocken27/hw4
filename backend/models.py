@@ -69,9 +69,16 @@ class ChatTurn(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Body of POST /api/chat: the conversation so far, ending with the shopper's newest message."""
+    """Body of POST /api/chat: the conversation so far, ending with the shopper's newest message.
+
+    The website also says which page the shopper is on, and which product if it's a
+    product page. The server looks the product up in the database itself, so only the ID
+    is trusted from the browser, and an unknown ID is ignored.
+    """
 
     messages: list[ChatTurn] = Field(min_length=1, max_length=40)
+    current_page: str | None = Field(default=None, max_length=200, pattern=r"^/[\w\-./?=&%+]*$")
+    current_product_id: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9][a-z0-9\-]*$")
 
     @model_validator(mode="after")
     def ends_with_user(self):
@@ -119,20 +126,45 @@ class AgentOutput(BaseModel):
 
 
 class ShopperContext(BaseModel):
-    """Who the agent is talking to. Only the first name is shared, never email or account data."""
+    """Who the agent is talking to, from the logged-in account (all empty for guests).
 
+    The Shopping Assistant gets the shopper's name and email. Helper agents never do, and
+    nothing else from the account (password hash, orders, other customers) is shared.
+    """
+
+    logged_in: bool = False
     first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+
+
+class CurrentProduct(BaseModel):
+    """The product the shopper is looking at, read fresh from the catalogue table."""
+
+    product_id: str
+    name: str
+    garment_type: str
+    price: float
+    colors: list[str]
+
+
+class PageContext(BaseModel):
+    """Where the shopper is on the website when they send a message."""
+
+    page: str | None = Field(default=None, description="The page's path, e.g. /products/yale-dad-hoodie or /cart")
+    product: CurrentProduct | None = Field(default=None, description="Set only on a product detail page")
 
 
 @dataclass
 class ChatDeps:
     """Passed to every tool during one chat reply.
 
-    The shopper's name stays with the main agent; helper agents only ever get the question.
-    agents_used collects which agents worked on the reply, for the agent log.
+    The shopper's identity and page stay with the main agent; helper agents only ever get
+    the question. agents_used collects which agents worked on the reply, for the agent log.
     """
 
     shopper: ShopperContext
+    page: PageContext = field(default_factory=PageContext)
     agents_used: list[str] = field(default_factory=list)
 
     def used(self, agent_name: str) -> None:

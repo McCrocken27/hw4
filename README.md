@@ -120,7 +120,7 @@ From `hw4/backend`, with the virtual environment active:
 ```
 python check_guardrails.py
 ```
-It runs 43 checks in about 5 seconds, covering the spec limits, stock and cart rules, account security, chat limits, the 3-minute time limit and the audit trail. It uses a temporary copy of the database, so your real data isn't touched and no AI calls are made. Add `--live` to also run two real chats.
+It runs 44 checks in about 5 seconds, covering the spec limits, stock and cart rules, account security, chat limits, the 3-minute time limit and the audit trail. It uses a temporary copy of the database, so your real data isn't touched and no AI calls are made. Add `--live` to also run two real chats.
 
 ## Troubleshooting
 
