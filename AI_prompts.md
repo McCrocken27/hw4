@@ -92,3 +92,7 @@ Every prompt I gave the AI assistant (Claude Code) during Homework 4, word for w
 
 1. [Screenshot: expected file layout for hw4/ and the local-only data/ pack] thanks CC! For Q13, put all our code in a folder named hw4 and push it to a public GitHub repository. DO NOT put my real .env, campus_customs.db, or product images on the GitHub repo. Use .gitignore. Include .env.example with placeholders. Follow the attached file layout. Make sure the agent itself is the four files under backend/ (prompts.prompt, agent, tools, models) and README.md should explain how to run and front and and back end after placing the data pack
 2. Now do the wrap-up and push everything to GitHub. Thanks CC
+3. So everything in this link is updated from before, right? https://github.com/McCrocken27/hw4
+4. Including the P8 fix? I don't see that one
+5. Is this done? Yes or no?
+6. Please try to upload it again. Ensure that this prompt is included and working for Q8: Now in Q8,  update the shopping assistant so it receives the logged-in user's name and email. Also pass the currently viewed product to the assistant when the user is on a product detail page, so questions such as "Do you have this in pink?" can be answered without the user naming the product. Preserve the existing chat-history and database backed inventory tools. Update harness.md to explain how user identity, conversation history, and current-page/product context are provided to the agent.

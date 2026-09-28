@@ -275,7 +275,7 @@ To keep the 100-item loop cap from hiding products, searches first narrow the ca
 - The site runs over plain HTTP locally. Set `COOKIE_SECURE=1` when serving it over HTTPS.
 - Guest carts live in a cookie on one browser. Logged-in carts follow the account.
 
-## 10. How the agent gets its context: identity, conversation history and the current page
+## 10. Q8: How the agent gets its context (user identity, conversation history, current page and product)
 
 This explains how the shopping assistant learns **who it's talking to**, **what has already been said**, and **what the shopper is looking at**, and how that information is kept safe.
 
